@@ -6,6 +6,7 @@ using UnityEngine.Networking;
 public class SketchfabWebRequestManager : MonoBehaviour
 {
     private static SketchfabWebRequestManager m_Instance;
+
     public static SketchfabWebRequestManager Instance
     {
         get
@@ -35,5 +36,4 @@ public class SketchfabWebRequestManager : MonoBehaviour
         yield return _request.SendWebRequest();
         _onRequestDone?.Invoke(_request);
     }
-
 }

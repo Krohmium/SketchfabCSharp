@@ -1,10 +1,15 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.Networking;
 using GLTFast;
 using System.Threading.Tasks;
+using GLTFast.Schema;
+using UnityEditor;
+using Material = UnityEngine.Material;
 
 public static class SketchfabModelImporter
 {
@@ -16,16 +21,16 @@ public static class SketchfabModelImporter
 
     public static void EnsureInitialized()
     {
-        if(m_Cache == null)
+        if (m_Cache == null)
         {
             m_Cache = new SketchfabModelDiskCache(Path.Combine(Application.persistentDataPath, m_SketchfabModelCacheFolderName), 1024 * 1024 * 1024);
             m_Temp = m_Temp = new SketchfabModelDiskTemp(Path.Combine(Application.persistentDataPath, m_SketchfabModelTemporaryDownloadFolderName), 5.0f);
         }
     }
 
-    public static async void Import(SketchfabModel _model, Action<GameObject> _onModelImported, bool _enableCache=false)
+    public static async void Import(SketchfabModel _model, Action<GameObject> _onModelImported, bool _enableCache = false)
     {
-        if(_enableCache)
+        if (_enableCache)
         {
             if (await m_Cache.IsInCache(_model))
             {
@@ -73,16 +78,16 @@ public static class SketchfabModelImporter
             {
                 string archivePath = Path.Combine(m_Temp.AbsolutePath, _model.Uid);
                 // Make sure to save again the model if downloaded twice
-                if(Directory.Exists(archivePath))
+                if (Directory.Exists(archivePath))
                 {
                     Directory.Delete(archivePath, true);
                 }
-                
+
                 using (ZipArchive zipArchive = new ZipArchive(new MemoryStream(downloadRequest.downloadHandler.data), ZipArchiveMode.Read))
                 {
                     zipArchive.ExtractToDirectory(archivePath);
                 }
-                
+
 
                 SaveModelMetadata(archivePath, _model);
                 GltfImport($"file://{Path.Combine(archivePath, "scene.gltf")}", (GameObject _importedModel) =>
@@ -99,7 +104,6 @@ public static class SketchfabModelImporter
                 // it doesn't get stuck
                 m_Temp.Unlock();
             }
-
         });
     }
 
@@ -123,7 +127,7 @@ public static class SketchfabModelImporter
         {
             success = await gltf.Load(_gltfFilePath);
         }
-        catch(Exception ex)
+        catch (Exception ex)
         {
             success = false;
         }
@@ -145,8 +149,53 @@ public static class SketchfabModelImporter
             go = null;
         }
 
+        // else
+        // {
+        // MeshRenderer[] mrs = go.GetComponentsInChildren<MeshRenderer>();
+        // //treat skinned meshrenderer here
+        // foreach (var mr in mrs)
+        // {
+        // Material[] mats = go.GetComponentsInChildren<Material>();
+        // foreach (var m in mats)
+        // {
+        //     //     // Texture2D txt = (Texture2D)m.mainTexture;
+        //     //     // mr.material.mainTexture = Resize(txt, 128, 128);
+        //     //
+        //     //
+        //     //     for (int i = 0; i < ShaderUtil.GetPropertyCount(m.shader); i++)
+        //     //     {
+        //     //         if (ShaderUtil.GetPropertyType(m.shader, i) == ShaderUtil.ShaderPropertyType.TexEnv)
+        //     //         {
+        //     //             Texture2D texture = (Texture2D)m.GetTexture(ShaderUtil.GetPropertyName(m.shader, i));
+        //     //             texture = Resize(texture, 128, 128);
+        //     //             m.SetTexture(ShaderUtil.GetPropertyName(m.shader, i), texture);
+        //     //         }
+        //     // }
+        //     List<string> textures = new List<string>();
+        //     m.GetTexturePropertyNames(textures);
+        //     foreach (var t in textures)
+        //     {
+        //         var temp = Resize((Texture2D)m.GetTexture(t), 128, 128);
+        //         m.SetTexture(t, temp);
+        //     }
+        // }
+        // // }
+        // // }
+
         _onModelImported?.Invoke(go);
     }
+
+    static Texture2D Resize(Texture2D texture2D, int targetX, int targetY)
+    {
+        RenderTexture rt = new RenderTexture(targetX, targetY, 24);
+        RenderTexture.active = rt;
+        Graphics.Blit(texture2D, rt);
+        Texture2D result = new Texture2D(targetX, targetY);
+        result.ReadPixels(new Rect(0, 0, targetX, targetY), 0, 0);
+        result.Apply();
+        return result;
+    }
+
 
     public static Task<bool> IsUidInCache(string _uid)
     {
